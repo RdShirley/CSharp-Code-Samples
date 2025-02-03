@@ -1,164 +1,180 @@
-[Route("CheckRun")]
-    [HttpPost]
-    public async Task<RetInfo[]> CheckRun([FromBody] TokSendInfo info)
+
+namespace DeploymentSystemRest.Controllers
+{
+
+    [Route("deployment")]
+    public class DeployController : Controller
     {
-        string val2 = DateTime.Now.ToString();
-        System.IO.File.AppendAllText(@"c:\accel\richard.txt", $"{val2} I'm in CheckRun\r\n");
-        try
+
+    [Route("CheckRun")]
+        [HttpPost]
+        public async Task<RetInfo[]> CheckRun([FromBody] TokSendInfo info)
         {
-            clientUserInfo cred = new clientUserInfo();
-            cred.userName = info.user;
-            cred.sessionId = info.sessionId;
-            cred.password = info.token;
-            cred.groups = Request.HttpContext.Connection.RemoteIpAddress.ToString();
-
-
-            List<RetInfo> retreturn = new List<RetInfo>();
- 
-            if (checkCred(cred))
+            string val2 = DateTime.Now.ToString();
+            System.IO.File.AppendAllText(@"c:\accel\richard.txt", $"{val2} I'm in CheckRun\r\n");
+            try
             {
-                BillTestDBContext ct = new BillTestDBContext();
-                BillTestDBContextProcedures ptc = new BillTestDBContextProcedures(ct);
-                //System.IO.File.AppendAllText(@"c:\accel\richard.txt", $"{info.data["UploadOptions"]}\r\n");
-                //UploadThird opts = JsonConvert.DeserializeObject<UploadThird>(info.data["UploadOptions"].ToString());
-                // List<PackageContent> rows = info.data["GridData"].ToList();
-
-                // UploadFourth sequence = JsonConvert.DeserializeObject<UploadFourth>(info.data["UploadOptions"].ToString());
-                UploadFourth fourSooth = JsonConvert.DeserializeObject<UploadFourth>(info.data["UploadOptions"].ToString());
-
-                List<KeyValueTemp>? GridData = JsonConvert.DeserializeObject<List<KeyValueTemp>>(fourSooth.GridData.ToString());
-
-                bool app = false;
-                bool script = false;
-                bool upload = false;
-                bool validated = true; //plan with validated is to essentially say "If I've had to supply or ask for anything, you're not validated"
-
-                //CheckRunResult dict = new();
-                //dict.clients = new List<clientResponse>();
-                CRRSecond dict = new();
-
-                List<ResourceInfo> PackageResources = new();
-
-                Dictionary<string, List<string>> Ponse = new(); // Will be Dictionary<rowID, List<clientIDs>> (clients which need resources for the row)
-
-
-                RetInfo[] firstInfo = await GetDeployActions();
-                RetInfo actionInfo = firstInfo[0];
-                if (actionInfo.result == "error" || actionInfo == null)
-                {//Make sure that default actions are returned
-                    RetInfo err = new RetInfo();
-                    err.result = "error";
-                    err.error = "Something went wrong Getting Deploy Actions";
-                    err.otherData = "RunPackage";
-                    RetInfo[] retArrr = { err };
-                    return retArrr;
-                }
-                List<ActionTypeData> actionTypes = actionInfo.data; //get list of action types
-
-                foreach (KeyValueTemp KVT in GridData)
+                clientUserInfo cred = new clientUserInfo();
+                cred.userName = info.user;
+                cred.sessionId = info.sessionId;
+                cred.password = info.token;
+                cred.groups = Request.HttpContext.Connection.RemoteIpAddress.ToString();
+    
+    
+                List<RetInfo> retreturn = new List<RetInfo>();
+     
+                if (checkCred(cred))
                 {
-                    List<ActionTypeData>? sortedTypes = actionTypes.Where(p => p.id == Guid.Parse(KVT.key.actionTypeID.ToString())).ToList(); //this should only ever return a single result
-                    if (sortedTypes.Count > 1)
-                    {
+                    BillTestDBContext ct = new BillTestDBContext();
+                    BillTestDBContextProcedures ptc = new BillTestDBContextProcedures(ct);
+                    //System.IO.File.AppendAllText(@"c:\accel\richard.txt", $"{info.data["UploadOptions"]}\r\n");
+                    //UploadThird opts = JsonConvert.DeserializeObject<UploadThird>(info.data["UploadOptions"].ToString());
+                    // List<PackageContent> rows = info.data["GridData"].ToList();
+    
+                    // UploadFourth sequence = JsonConvert.DeserializeObject<UploadFourth>(info.data["UploadOptions"].ToString());
+                    UploadFourth fourSooth = JsonConvert.DeserializeObject<UploadFourth>(info.data["UploadOptions"].ToString());
+    
+                    List<KeyValueTemp>? GridData = JsonConvert.DeserializeObject<List<KeyValueTemp>>(fourSooth.GridData.ToString());
+    
+                    bool app = false;
+                    bool script = false;
+                    bool upload = false;
+                    bool validated = true; //plan with validated is to essentially say "If I've had to supply or ask for anything, you're not validated"
+    
+                    //CheckRunResult dict = new();
+                    //dict.clients = new List<clientResponse>();
+                    CRRSecond dict = new();
+    
+                    List<ResourceInfo> PackageResources = new();
+    
+                    Dictionary<string, List<string>> Ponse = new(); // Will be Dictionary<rowID, List<clientIDs>> (clients which need resources for the row)
+    
+    
+                    RetInfo[] firstInfo = await GetDeployActions();
+                    RetInfo actionInfo = firstInfo[0];
+                    if (actionInfo.result == "error" || actionInfo == null)
+                    {//Make sure that default actions are returned
                         RetInfo err = new RetInfo();
                         err.result = "error";
-                        err.error = "sortedTypes is greater than 1";
-                        err.otherData = "CheckRun";
+                        err.error = "Something went wrong Getting Deploy Actions";
+                        err.otherData = "RunPackage";
                         RetInfo[] retArrr = { err };
                         return retArrr;
                     }
-                    ActionTypeData matches = sortedTypes.FirstOrDefault();
-
-                    if (matches.type.ToLower() == "apppool")
+                    List<ActionTypeData> actionTypes = actionInfo.data; //get list of action types
+    
+                    foreach (KeyValueTemp KVT in GridData)
                     {
-                        app = true;
-
-                    }
-                    else if (matches.type.ToLower() == "script")
-                    {
-                        script = true;
-
-                    }
-                    if (matches.action.ToLower() == "upload")
-                    {
-                        upload = true;
-                    }
-
-                    foreach (KeyValue Valve in KVT.value)
-                    {
-                        Guid clientID = Guid.Parse(Valve.key);
-                        Guid dictID = Guid.Parse(KVT.key.resourceDictID);
-                        if (Valve.value.IsNullOrEmpty())
+                        List<ActionTypeData>? sortedTypes = actionTypes.Where(p => p.id == Guid.Parse(KVT.key.actionTypeID.ToString())).ToList(); //this should only ever return a single result
+                        if (sortedTypes.Count > 1)
                         {
-                            List<ResourceInfo> rowRes = await ptc.DeployResourceInfoByClientIdAndDictIdAsync(clientID, dictID);
-                            if(rowRes.Count > 0)
+                            RetInfo err = new RetInfo();
+                            err.result = "error";
+                            err.error = "sortedTypes is greater than 1";
+                            err.otherData = "CheckRun";
+                            RetInfo[] retArrr = { err };
+                            return retArrr;
+                        }
+                        ActionTypeData matches = sortedTypes.FirstOrDefault();
+    
+                        if (matches.type.ToLower() == "apppool")
+                        {
+                            app = true;
+    
+                        }
+                        else if (matches.type.ToLower() == "script")
+                        {
+                            script = true;
+    
+                        }
+                        if (matches.action.ToLower() == "upload")
+                        {
+                            upload = true;
+                        }
+    
+                        foreach (KeyValue Valve in KVT.value)
+                        {
+                            Guid clientID = Guid.Parse(Valve.key);
+                            Guid dictID = Guid.Parse(KVT.key.resourceDictID);
+                            if (Valve.value.IsNullOrEmpty())
                             {
-                                continue;
+                                List<ResourceInfo> rowRes = await ptc.DeployResourceInfoByClientIdAndDictIdAsync(clientID, dictID);
+                                if(rowRes.Count > 0)
+                                {
+                                    continue;
+                                }
+                                else
+                                {
+                                    string rowID = KVT.key.rowID.ToString();
+    
+                                    Valve.value = "REQUIRED";
+                                    validated = false;
+    
+                                    if(Ponse[rowID] != null)
+                                    {//If this row has already thrown an error, add this client to that error list.
+                                        Ponse[rowID].Add(clientID.ToString());
+                                    }
+                                    else
+                                    { //Else create a new error list with this rowID and client ID in a list
+                                        List<string> temp = new();
+                                        temp.Add(clientID.ToString());
+    
+                                        Ponse.Add(rowID, temp);
+                                    }
+                                }
                             }
                             else
                             {
-                                string rowID = KVT.key.rowID.ToString();
-
-                                Valve.value = "REQUIRED";
-                                validated = false;
-
-                                if(Ponse[rowID] != null)
-                                {//If this row has already thrown an error, add this client to that error list.
-                                    Ponse[rowID].Add(clientID.ToString());
-                                }
-                                else
-                                { //Else create a new error list with this rowID and client ID in a list
-                                    List<string> temp = new();
-                                    temp.Add(clientID.ToString());
-
-                                    Ponse.Add(rowID, temp);
-                                }
+                                continue; //just trust for now
                             }
                         }
-                        else
-                        {
-                            continue; //just trust for now
-                        }
+    
                     }
-
+    
+                    dict.validated = validated;
+                    dict.reqRowClients = Ponse;
+    
+    
+                    RetInfo ret = new RetInfo();
+                    ret.result = "success";
+                    ret.data = dict;
+                    ret.otherData = "CheckRun";
+                    System.IO.File.AppendAllText(@"c:\accel\richard.txt", $" Done with CheckRun\r\n");
+    
+                    RetInfo[] retArr = { ret };
+                    return retArr;
                 }
-
-                dict.validated = validated;
-                dict.reqRowClients = Ponse;
-
-
-                RetInfo ret = new RetInfo();
-                ret.result = "success";
-                ret.data = dict;
-                ret.otherData = "CheckRun";
-                System.IO.File.AppendAllText(@"c:\accel\richard.txt", $" Done with CheckRun\r\n");
-
-                RetInfo[] retArr = { ret };
+                else
+                {
+                    System.IO.File.AppendAllText(@"c:\accel\richard.txt", $"Validation Error in ReadyToRun. \r\n");
+    
+                    RetInfo retV = new RetInfo();
+                    retV.result = "error";
+                    retV.data = "User Validation Error";
+    
+                    RetInfo[] retArrV = { retV };
+                    return retArrV;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.IO.File.AppendAllText(@"c:\accel\richard.txt", $" I errored in ReadyToRun\r\n");
+                System.IO.File.AppendAllText(@"c:\accel\richard.txt", $" {ex.Message}\r\n");
+                System.IO.File.AppendAllText(@"c:\accel\richard.txt", $" {ex.StackTrace}\r\n");
+    
+                RetInfo err = new RetInfo();
+                err.result = "error";
+                err.error = ex.Message;
+                err.otherData = "ReadyToRun";
+                RetInfo[] retArr = { err };
                 return retArr;
             }
-            else
-            {
-                System.IO.File.AppendAllText(@"c:\accel\richard.txt", $"Validation Error in ReadyToRun. \r\n");
-
-                RetInfo retV = new RetInfo();
-                retV.result = "error";
-                retV.data = "User Validation Error";
-
-                RetInfo[] retArrV = { retV };
-                return retArrV;
-            }
         }
-        catch (Exception ex)
-        {
-            System.IO.File.AppendAllText(@"c:\accel\richard.txt", $" I errored in ReadyToRun\r\n");
-            System.IO.File.AppendAllText(@"c:\accel\richard.txt", $" {ex.Message}\r\n");
-            System.IO.File.AppendAllText(@"c:\accel\richard.txt", $" {ex.StackTrace}\r\n");
-
-            RetInfo err = new RetInfo();
-            err.result = "error";
-            err.error = ex.Message;
-            err.otherData = "ReadyToRun";
-            RetInfo[] retArr = { err };
-            return retArr;
-        }
-    }
+}
+public class TokSendInfo
+{
+    public string user { get; set; }
+    public string sessionId { get; set; }
+    public string token { get; set; }
+    public Dictionary<string, dynamic> data { get; set; }
+}
